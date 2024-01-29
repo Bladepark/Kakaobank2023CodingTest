@@ -48,6 +48,7 @@ class MyStorageFragment : Fragment() {
                     updatedFavorites.remove(item)
                     favoriteList = updatedFavorites
                     postAdapter.submitList(updatedFavorites)
+                    (requireActivity() as MainActivity).favoriteListLiveData.value = updatedFavorites
                 }
             }
         }

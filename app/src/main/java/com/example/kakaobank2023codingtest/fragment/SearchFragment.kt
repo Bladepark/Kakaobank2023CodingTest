@@ -70,7 +70,7 @@ class SearchFragment : Fragment() {
                         (requireActivity() as MainActivity).favoriteListLiveData.value?.toMutableList() ?: mutableListOf()
                     val favorites = searchImages.value?.filter { list -> list.isFavorite }
                     if (favorites != null) {
-                        test?.addAll(favorites.filterNot { test.contains(it) })
+                        test.addAll(favorites.filterNot { test.contains(it) })
                         (requireActivity() as MainActivity).favoriteListLiveData.value = test
                     }
                 }
