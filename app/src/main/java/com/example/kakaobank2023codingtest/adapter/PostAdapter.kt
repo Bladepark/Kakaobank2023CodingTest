@@ -1,5 +1,7 @@
 package com.example.kakaobank2023codingtest.adapter
 
+import android.content.ClipData.Item
+import android.content.DialogInterface.OnClickListener
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,7 +17,7 @@ class PostAdapter : ListAdapter<PostModel, PostAdapter.ViewHolder>(DiffUtil) {
     companion object {
         private val DiffUtil = object : DiffUtil.ItemCallback<PostModel>() {
             override fun areItemsTheSame(oldItem: PostModel, newItem: PostModel): Boolean {
-                return oldItem === newItem
+                return oldItem.id == newItem.id
             }
 
             override fun areContentsTheSame(oldItem: PostModel, newItem: PostModel): Boolean {
@@ -23,6 +25,12 @@ class PostAdapter : ListAdapter<PostModel, PostAdapter.ViewHolder>(DiffUtil) {
             }
         }
     }
+
+    interface ItemClick {
+        fun onClick(item: PostModel)
+    }
+
+    var itemClick: ItemClick? = null
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val binding =
@@ -33,6 +41,16 @@ class PostAdapter : ListAdapter<PostModel, PostAdapter.ViewHolder>(DiffUtil) {
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = getItem(position)
         holder.bind(item)
+        holder.itemView.setOnClickListener {
+            item.isFavorite = !item.isFavorite
+            if (item.isFavorite) {
+                holder.binding.ivFavorite.visibility = View.VISIBLE
+            } else {
+                holder.binding.ivFavorite.visibility = View.INVISIBLE
+            }
+            println("Item clicked - ID: ${item.id}, isFavorite: ${item.isFavorite}")
+            itemClick?.onClick(item)
+        }
     }
 
     inner class ViewHolder(var binding: ItemRecyclerViewBinding) :
@@ -44,12 +62,10 @@ class PostAdapter : ListAdapter<PostModel, PostAdapter.ViewHolder>(DiffUtil) {
                 }
                 tvPortalSite.text = item.siteName
                 tvPostedTime.text = item.postedTime
-                postItem.setOnClickListener {
-                    if (item.isFavorite) {
-                        ivFavorite.visibility = View.VISIBLE
-                    } else {
-                        ivFavorite.visibility = View.INVISIBLE
-                    }
+                ivFavorite.visibility = if (item.isFavorite) {
+                    View.VISIBLE
+                } else {
+                    View.INVISIBLE
                 }
             }
         }

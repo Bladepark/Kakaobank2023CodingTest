@@ -13,24 +13,25 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.switchMap
 import androidx.recyclerview.widget.GridLayoutManager
+import com.example.kakaobank2023codingtest.activity.MainActivity
 import com.example.kakaobank2023codingtest.adapter.PostAdapter
 import com.example.kakaobank2023codingtest.data.Document
 import com.example.kakaobank2023codingtest.data.PostModel
 import com.example.kakaobank2023codingtest.databinding.FragmentSearchBinding
 import com.example.kakaobank2023codingtest.api.RetrofitInstance
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Locale
 
-private const val ARG_PARAM1 = "param1"
 
 class SearchFragment : Fragment() {
 
-    private var _binding : FragmentSearchBinding? = null
+    private var _binding: FragmentSearchBinding? = null
     private val binding get() = _binding!!
-    private var param1: String? = null
-
     private val postAdapter by lazy { PostAdapter() }
 
     private val _searchImages = MutableLiveData<List<Document>>()
@@ -39,25 +40,13 @@ class SearchFragment : Fragment() {
     }
 
     companion object {
-        @JvmStatic
-        fun newInstance(param1: String, param2: String) =
-            SearchFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_PARAM1, param1)
-                }
-            }
-    }
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        arguments?.let {
-            param1 = it.getString(ARG_PARAM1)
-        }
+        fun newInstance() = SearchFragment()
     }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         _binding = FragmentSearchBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -71,9 +60,21 @@ class SearchFragment : Fragment() {
     private fun initView() {
         setSearchListAdapter()
         setSearchProcess()
+        setLastSearchQuery()
 
-        searchImages.observe(viewLifecycleOwner) {
-            postAdapter.submitList(it.toList())
+        searchImages.observe(viewLifecycleOwner) { images ->
+            postAdapter.submitList(images.toList())
+            postAdapter.itemClick = object : PostAdapter.ItemClick {
+                override fun onClick(item: PostModel) {
+                    val test =
+                        (requireActivity() as MainActivity).favoriteListLiveData.value?.toMutableList() ?: mutableListOf()
+                    val favorites = searchImages.value?.filter { list -> list.isFavorite }
+                    if (favorites != null) {
+                        test?.addAll(favorites.filterNot { test.contains(it) })
+                        (requireActivity() as MainActivity).favoriteListLiveData.value = test
+                    }
+                }
+            }
         }
     }
 
@@ -89,16 +90,22 @@ class SearchFragment : Fragment() {
             val query = binding.etSearch.text.toString()
             if (query.isNotBlank()) {
                 fetchSearchImages(query)
+                restoreLastSearchQuery(query)
                 hideKeyboard()
+            } else {
+                Snackbar.make(requireView(), "검색창에 검색어를 입력하세요.", Snackbar.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun fetchSearchImages(query : String) {
+    private fun fetchSearchImages(query: String) {
         CoroutineScope(Dispatchers.Main).launch {
             runCatching {
                 val documents = getSearchImages(query)
-                _searchImages.value = documents
+                val formattedDocuments = documents.map { document ->
+                    document.copy(datetime = formatDateTime(document.datetime))
+                }
+                _searchImages.value = formattedDocuments
             }.onFailure {
                 Log.e("fetchSearchImages", "fetchSearchImages(query) failed! : ${it.message}")
             }
@@ -109,25 +116,48 @@ class SearchFragment : Fragment() {
         RetrofitInstance.api.getSearchImages(query = query).documents
     }
 
+    private fun formatDateTime(originalDateTime: String): String {
+        val originalFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.getDefault())
+        val targetFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        val date = originalFormat.parse(originalDateTime)
+        return date?.let { targetFormat.format(it) } ?: ""
+    }
+
+    private fun restoreLastSearchQuery(query: String) {
+        val sharedPreferences =
+            requireContext().getSharedPreferences("MyPreferences", Context.MODE_PRIVATE)
+        val editor = sharedPreferences.edit()
+        editor.putString("lastSearchQuery", query)
+        editor.apply()
+    }
+
     private fun hideKeyboard() {
         val inputMethodManager =
             requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         inputMethodManager.hideSoftInputFromWindow(binding.root.windowToken, 0)
     }
 
+    private fun setLastSearchQuery() {
+        val sharedPreferences =
+            requireContext().getSharedPreferences("MyPreferences", Context.MODE_PRIVATE)
+        val lastSearchQuery = sharedPreferences.getString("lastSearchQuery", "")
+        binding.etSearch.setText(lastSearchQuery)
+    }
+
 
     override fun onDestroyView() {
-        super.onDestroyView()
         _binding = null
+        super.onDestroyView()
     }
 }
 
-private fun List<Document>.toPostModel() : List<PostModel> {
+private fun List<Document>.toPostModel(): List<PostModel> {
     return this.map {
         PostModel(
             thumbnailUrl = it.thumbnailUrl.toUri(),
             siteName = it.displaySitename,
-            postedTime = it.datetime
+            postedTime = it.datetime,
+            isFavorite = false
         )
     }
 }
